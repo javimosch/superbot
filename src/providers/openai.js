@@ -12,11 +12,13 @@ export class OpenAIProvider extends LLMProvider {
    * @param {string} params.apiKey - API key
    * @param {string} [params.apiBase] - API base URL
    * @param {string} [params.defaultModel] - Default model
+   * @param {string[]} [params.fallbackModels] - Fallback models in priority order
    */
-  constructor({ apiKey, apiBase, defaultModel }) {
+  constructor({ apiKey, apiBase, defaultModel, fallbackModels = [] }) {
     super({ apiKey, apiBase, defaultModel });
     this.apiBase = apiBase || 'https://api.openai.com/v1';
     this.defaultModel = defaultModel || 'gpt-4';
+    this.fallbackModels = fallbackModels;
   }
 
   /**
@@ -37,7 +39,7 @@ export class OpenAIProvider extends LLMProvider {
     temperature = 0.7
   }) {
     const useModel = model || this.defaultModel;
-
+    
     const payload = {
       model: useModel,
       messages,
@@ -47,7 +49,42 @@ export class OpenAIProvider extends LLMProvider {
 
     if (tools && tools.length > 0) {
       payload.tools = tools;
-      payload.tool_choice = 'auto';
+      
+      // Force tool usage for problematic models
+      if (useModel === 'xiaomi/mimo-v2-flash') {
+        // For xiaomi model, try different tool_choice strategies
+        const userMessage = messages[messages.length - 1]?.content?.toLowerCase() || '';
+        
+        if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+          console.log(`[DEBUG] Xiaomi model message: "${userMessage}"`);
+        }
+        
+        if (this._shouldForceTool(userMessage)) {
+          // Force specific tool based on message content
+          const forcedTool = this._getForcedTool(userMessage, tools);
+          if (forcedTool) {
+            payload.tool_choice = {
+              type: "function",
+              function: { name: forcedTool }
+            };
+            if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+              console.log(`[DEBUG] Forcing tool: ${forcedTool}`);
+            }
+          } else {
+            payload.tool_choice = 'auto';
+            if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+              console.log(`[DEBUG] Using auto tool choice`);
+            }
+          }
+        } else {
+          payload.tool_choice = 'auto';
+          if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+            console.log(`[DEBUG] No tool forcing needed, using auto`);
+          }
+        }
+      } else {
+        payload.tool_choice = 'auto';
+      }
     }
 
     try {
@@ -59,19 +96,110 @@ export class OpenAIProvider extends LLMProvider {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 120000
+          timeout: 30000 // 30 second timeout
         }
       );
 
       return this._parseResponse(response.data);
     } catch (err) {
       const errMsg = err.response?.data?.error?.message || err.message;
-      logger.error(`LLM error: ${errMsg}`);
+      logger.error(`LLM error with ${useModel}: ${errMsg}`);
+      
+      // If it's a timeout or network error, try fallback models
+      if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+        const fallbackModels = this.fallbackModels.length > 0 ? this.fallbackModels : ['openai/gpt-3.5-turbo'];
+        
+        if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+          console.log(`[DEBUG] Model ${useModel} failed, trying ${fallbackModels.length} fallback models`);
+        }
+        
+        for (const fallbackModel of fallbackModels) {
+          if (fallbackModel === useModel) continue; // Skip if same as current model
+          
+          logger.warn(`Model ${useModel} timed out, trying fallback: ${fallbackModel}`);
+          if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+            console.log(`[DEBUG] Attempting fallback model: ${fallbackModel}`);
+          }
+          
+          try {
+            const result = await this.chat({
+              messages,
+              tools,
+              model: fallbackModel,
+              maxTokens,
+              temperature
+            });
+            
+            if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+              console.log(`[DEBUG] Fallback model ${fallbackModel} succeeded`);
+            }
+            
+            return result;
+          } catch (fallbackErr) {
+            logger.error(`Fallback model ${fallbackModel} also failed: ${fallbackErr.message}`);
+            if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+              console.log(`[DEBUG] Fallback model ${fallbackModel} failed: ${fallbackErr.message}`);
+            }
+            continue; // Try next fallback
+          }
+        }
+        
+        if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+          console.log(`[DEBUG] All fallback models exhausted`);
+        }
+      }
+      
       return createLLMResponse({
         content: `Error calling LLM: ${errMsg}`,
         finishReason: 'error'
       });
     }
+  }
+
+  /**
+   * Determine if we should force tool usage based on message content
+   */
+  _shouldForceTool(userMessage) {
+    const toolKeywords = [
+      'find', 'search', 'look for', 'list', 'ls', 'dir', 'cat', 'read', 'show',
+      'exec', 'run', 'execute', 'web search', 'search web', 'fetch', 'get'
+    ];
+    
+    return toolKeywords.some(keyword => userMessage.includes(keyword));
+  }
+
+  /**
+   * Get the appropriate tool to force based on message content
+   */
+  _getForcedTool(userMessage, availableTools) {
+    const toolNames = availableTools.map(t => t.function.name);
+    
+    // File operations
+    if (userMessage.includes('find') || userMessage.includes('search')) {
+      if (toolNames.includes('exec')) return 'exec';
+    }
+    
+    if (userMessage.includes('list') || userMessage.includes('ls') || userMessage.includes('dir')) {
+      if (toolNames.includes('list_dir')) return 'list_dir';
+    }
+    
+    if (userMessage.includes('read') || userMessage.includes('cat') || userMessage.includes('show')) {
+      if (toolNames.includes('read_file')) return 'read_file';
+    }
+    
+    // Web operations
+    if (userMessage.includes('web search') || userMessage.includes('search web')) {
+      if (toolNames.includes('web_search')) return 'web_search';
+    }
+    
+    if (userMessage.includes('fetch') || userMessage.includes('get url')) {
+      if (toolNames.includes('web_fetch')) return 'web_fetch';
+    }
+    
+    // Default to exec if available
+    if (toolNames.includes('exec')) return 'exec';
+    
+    return null;
   }
 
   /**
@@ -130,6 +258,7 @@ export function createProvider(config) {
   return new OpenAIProvider({
     apiKey: config.provider.apiKey,
     apiBase: config.provider.apiBase,
-    defaultModel: config.provider.defaultModel
+    defaultModel: config.provider.defaultModel,
+    fallbackModels: config.provider.fallbackModels || []
   });
 }
