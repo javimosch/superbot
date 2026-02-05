@@ -109,6 +109,106 @@ export class AgentLoop {
   }
 
   /**
+   * Check if we should force tool execution for xiaomi model
+   */
+  _shouldForceToolExecution(userMessage) {
+    const toolKeywords = [
+      'find', 'search', 'look for', 'list', 'ls', 'dir', 'cat', 'read', 'show',
+      'exec', 'run', 'execute', 'web search', 'search web', 'fetch', 'get'
+    ];
+    
+    return toolKeywords.some(keyword => userMessage.includes(keyword));
+  }
+
+  /**
+   * Get direct tool call for xiaomi model when it refuses to use tools
+   */
+  _getDirectToolCall(userMessage, originalContent) {
+    // File search patterns
+    if (userMessage.includes('find') && userMessage.includes('pdf')) {
+      return {
+        name: 'exec',
+        arguments: { command: "find . -name '*.pdf' -type f" }
+      };
+    }
+    
+    if (userMessage.includes('find') && (userMessage.includes('txt') || userMessage.includes('text'))) {
+      return {
+        name: 'exec',
+        arguments: { command: "find . -name '*.txt' -type f" }
+      };
+    }
+    
+    if (userMessage.includes('search') && userMessage.includes('pdf')) {
+      return {
+        name: 'exec',
+        arguments: { command: "find . -name '*.pdf' -type f" }
+      };
+    }
+    
+    if (userMessage.includes('search') && (userMessage.includes('txt') || userMessage.includes('text'))) {
+      return {
+        name: 'exec',
+        arguments: { command: "find . -name '*.txt' -type f" }
+      };
+    }
+    
+    // Generic find patterns
+    if (userMessage.match(/find.*\.(pdf|txt|doc|md|json)/)) {
+      const match = userMessage.match(/\.(pdf|txt|doc|md|json)/);
+      const ext = match[1];
+      return {
+        name: 'exec',
+        arguments: { command: `find . -name '*.${ext}' -type f` }
+      };
+    }
+    
+    if (userMessage.includes('find') && userMessage.includes('all')) {
+      const match = userMessage.match(/find all (\w+) files/);
+      if (match) {
+        const fileType = match[1];
+        return {
+          name: 'exec',
+          arguments: { command: `find . -name '*.${fileType}' -type f` }
+        };
+      }
+    }
+    
+    // List directory patterns
+    if (userMessage.match(/^(ls|dir|list)/) || userMessage.includes('list directory')) {
+      return {
+        name: 'list_dir',
+        arguments: { path: '.' }
+      };
+    }
+    
+    // Read file patterns
+    if (userMessage.match(/^(cat|read|type|show)/) || userMessage.includes('show file') || userMessage.includes('read file')) {
+      const match = originalContent.match(/(?:cat|read|type|show)\s+([^\s]+)/);
+      if (match) {
+        return {
+          name: 'read_file',
+          arguments: { path: match[1] }
+        };
+      }
+    }
+    
+    // Web search patterns
+    if (userMessage.includes('web search') || userMessage.includes('search web')) {
+      // Extract search query
+      const match = originalContent.match(/(?:web search|search web):\s*(.+)/i);
+      if (match) {
+        return {
+          name: 'web_search',
+          arguments: { query: match[1] }
+        };
+      }
+    }
+    
+    return null;
+  }
+
+  /**
    * Process a single inbound message
    * @param {object} msg - Inbound message
    * @returns {Promise<object|null>}
@@ -142,13 +242,59 @@ export class AgentLoop {
     let finalContent = null;
 
     for (let i = 0; i < this.maxIterations; i++) {
+      // Debug logging for available tools
+      if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+        const tools = this.tools.getDefinitions();
+        console.log(`[DEBUG] Sending ${tools.length} tools to model:`);
+        tools.forEach((tool, index) => {
+          console.log(`[DEBUG] Tool ${index + 1}: ${tool.function.name} - ${tool.function.description.substring(0, 100)}...`);
+        });
+      }
+
       const response = await this.provider.chat({
         messages,
         tools: this.tools.getDefinitions(),
         model: this.model
       });
 
+      // Debug logging for model response
+      if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+        console.log(`[DEBUG] Model response: hasToolCalls=${response.hasToolCalls}, content="${response.content}"`);
+      }
+
+      // For xiaomi model: if no tool calls but should have used tools, execute directly
+      if (this.model === 'xiaomi/mimo-v2-flash' && !response.hasToolCalls) {
+        const userMessage = msg.content.toLowerCase();
+        if (this._shouldForceToolExecution(userMessage)) {
+          const forcedCall = this._getDirectToolCall(userMessage, msg.content);
+          if (forcedCall) {
+            if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+              console.log(`[DEBUG] Model refused tools, executing directly: ${forcedCall.name}`);
+            }
+            
+            const result = await this.tools.execute(forcedCall.name, forcedCall.arguments);
+            
+            if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+              console.log(`[DEBUG] Direct tool result: ${result.substring(0, 200)}${result.length > 200 ? '...' : ''}`);
+            }
+            
+            session.addMessage('user', msg.content);
+            session.addMessage('assistant', `I used the ${forcedCall.name} tool to help you.`);
+            this.sessionManager.save(session);
+            return { content: result };
+          }
+        }
+      }
+
       if (response.hasToolCalls) {
+        // Debug logging for tool calls
+        if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+          console.log('[DEBUG] Tool calls requested:');
+          response.toolCalls.forEach((tc, index) => {
+            console.log(`[DEBUG] Tool ${index + 1}: ${tc.name}(${JSON.stringify(tc.arguments)})`);
+          });
+        }
+
         // Add assistant message with tool calls
         const toolCallDicts = response.toolCalls.map(tc => ({
           id: tc.id,
@@ -161,6 +307,12 @@ export class AgentLoop {
         for (const tc of response.toolCalls) {
           logger.debug(`Executing tool: ${tc.name}`);
           const result = await this.tools.execute(tc.name, tc.arguments);
+          
+          // Debug logging for tool results
+          if (process.env.DEBUG && process.env.DEBUG.includes('*')) {
+            console.log(`[DEBUG] Tool ${tc.name} result: ${result.substring(0, 200)}${result.length > 200 ? '...' : ''}`);
+          }
+          
           messages = this.context.addToolResult(messages, tc.id, tc.name, result);
         }
       } else {
@@ -223,11 +375,19 @@ export class AgentLoop {
     let finalContent = null;
 
     for (let i = 0; i < this.maxIterations; i++) {
+      logger.debug(`Agent loop iteration ${i + 1}/${this.maxIterations}`);
+      logger.debug(`Calling provider.chat with model: ${this.model}`);
+      const startTime = Date.now();
+      
       const response = await this.provider.chat({
         messages,
         tools: this.tools.getDefinitions(),
         model: this.model
       });
+      
+      const responseTime = Date.now() - startTime;
+      logger.debug(`Provider responded in ${responseTime}ms`);
+      logger.debug(`Response has tool calls: ${response.hasToolCalls}`);
 
       if (response.hasToolCalls) {
         const toolCallDicts = response.toolCalls.map(tc => ({
