@@ -134,12 +134,49 @@ const channels = program.command('channels').description('Manage channels');
 channels
   .command('status')
   .description('Show channel status')
-  .action(() => {
+  .action(async () => {
     const config = getConfig();
 
+    // Try to get runtime status from server
+    let runtimeStatus = null;
+    try {
+      const response = await fetch('http://localhost:3000/api/channels/status');
+      if (response.ok) {
+        runtimeStatus = await response.json();
+      }
+    } catch (err) {
+      // Server not running, will show config status only
+    }
+
     console.log('Channel Status\n');
-    console.log(`Telegram: ${config.telegram.enabled ? '✓ enabled' : '✗ disabled'}`);
-    console.log(`WhatsApp: ${config.whatsapp.enabled ? '✓ enabled' : '✗ disabled'}`);
+    
+    // Telegram status
+    const telegramRuntime = runtimeStatus?.telegram;
+    if (telegramRuntime?.connected) {
+      console.log(`Telegram: ✓ connected`);
+    } else if (config.telegram.enabled) {
+      if (runtimeStatus && !telegramRuntime?.connected) {
+        console.log(`Telegram: ✗ enabled but not connected`);
+      } else {
+        console.log(`Telegram: ✓ enabled (server not running)`);
+      }
+    } else {
+      console.log(`Telegram: ✗ disabled`);
+    }
+
+    // WhatsApp status
+    const whatsappRuntime = runtimeStatus?.whatsapp;
+    if (whatsappRuntime?.connected) {
+      console.log(`WhatsApp: ✓ connected`);
+    } else if (config.whatsapp.enabled) {
+      if (runtimeStatus && !whatsappRuntime?.connected) {
+        console.log(`WhatsApp: ✗ enabled but not connected`);
+      } else {
+        console.log(`WhatsApp: ✓ enabled (server not running)`);
+      }
+    } else {
+      console.log(`WhatsApp: ✗ disabled`);
+    }
   });
 
 /**
