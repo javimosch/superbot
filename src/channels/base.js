@@ -46,6 +46,39 @@ export class BaseChannel {
   }
 
   /**
+   * Check if a sender is allowed to use this bot
+   * @param {string} senderId - The sender's identifier
+   * @returns {boolean} True if allowed, false otherwise
+   */
+  isAllowed(senderId) {
+    const allowFrom = this.config.allowFrom || [];
+    
+    // If no allow list, allow everyone
+    if (!allowFrom || allowFrom.length === 0) {
+      return true;
+    }
+    
+    const senderStr = String(senderId);
+    
+    // Check exact match
+    if (allowFrom.includes(senderStr)) {
+      return true;
+    }
+    
+    // Support format "user_id|username" - check each part
+    if (senderStr.includes('|')) {
+      const parts = senderStr.split('|');
+      for (const part of parts) {
+        if (part && allowFrom.includes(part)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
    * Handle an incoming message
    * @param {object} params
    * @param {string} params.senderId
@@ -55,6 +88,12 @@ export class BaseChannel {
    * @param {object} [params.metadata]
    */
   async _handleMessage({ senderId, chatId, content, media = [], metadata = {} }) {
+    // Check permissions first
+    if (!this.isAllowed(senderId)) {
+      logger.warn(`${this.name}: blocked message from unauthorized sender ${senderId}`);
+      return;
+    }
+
     const msg = createInboundMessage({
       channel: this.name,
       senderId,

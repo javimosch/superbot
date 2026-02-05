@@ -112,8 +112,9 @@ export function loadConfig() {
 
   // Telegram
   config.telegram = {
-    enabled: parseBool(env.TELEGRAM_ENABLED, config.telegram.enabled),
-    token: env.TELEGRAM_BOT_TOKEN || config.telegram.token
+    enabled: config.telegram.enabled || parseBool(env.TELEGRAM_ENABLED, false),
+    token: env.TELEGRAM_BOT_TOKEN || config.telegram.token,
+    allowFrom: env.TELEGRAM_ALLOW_FROM ? env.TELEGRAM_ALLOW_FROM.split(',').map(s => s.trim()) : config.telegram.allowFrom
   };
 
   // WhatsApp

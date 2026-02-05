@@ -36,7 +36,8 @@ export const defaultConfig = {
   // Telegram channel
   telegram: {
     enabled: false,
-    token: ''
+    token: '',
+    allowFrom: []
   },
 
   // WhatsApp channel

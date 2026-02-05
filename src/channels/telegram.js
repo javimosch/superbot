@@ -75,37 +75,60 @@ export class TelegramChannel extends BaseChannel {
   constructor(config, bus) {
     super(config, bus);
     this.bot = null;
+    
+    // Debug logging for configuration
+    logger.debug('TelegramChannel: initializing with config');
+    logger.debug(`Telegram: enabled=${!!config.enabled}`);
+    logger.debug(`Telegram: hasToken=${!!config.token}`);
+    logger.debug(`Telegram: allowFrom=${JSON.stringify(config.allowFrom || [])}`);
   }
 
   async start() {
-    if (!this.config.token) {
-      logger.error('Telegram bot token not configured');
-      return;
-    }
+    try {
+      if (!this.config.token) {
+        logger.error('Telegram bot token not configured');
+        return;
+      }
 
-    this._running = true;
-    this.bot = new TelegramBot(this.config.token, { polling: true });
+      logger.debug('Telegram: initializing bot...');
+      this._running = true;
+      this.bot = new TelegramBot(this.config.token, { polling: true });
 
-    this.bot.on('message', async (msg) => {
-      if (!msg.text) return;
+      this.bot.on('message', async (msg) => {
+        if (!msg.text) return;
 
-      await this._handleMessage({
-        senderId: msg.from.id.toString(),
-        chatId: msg.chat.id.toString(),
-        content: msg.text,
-        metadata: {
-          firstName: msg.from.first_name,
-          lastName: msg.from.last_name,
-          username: msg.from.username
+        // Construct senderId with format "user_id|username" for compatibility
+        let senderId = msg.from.id.toString();
+        if (msg.from.username) {
+          senderId = `${senderId}|${msg.from.username}`;
         }
+
+        await this._handleMessage({
+          senderId,
+          chatId: msg.chat.id.toString(),
+          content: msg.text,
+          metadata: {
+            firstName: msg.from.first_name,
+            lastName: msg.from.last_name,
+            username: msg.from.username
+          }
+        });
       });
-    });
 
-    this.bot.on('polling_error', (err) => {
-      logger.error(`Telegram polling error: ${err.message}`);
-    });
+      this.bot.on('polling_error', (err) => {
+        logger.error(`Telegram polling error: ${err.message}`);
+      });
 
-    logger.info('Telegram channel started');
+      this.bot.on('error', (err) => {
+        logger.error(`Telegram bot error: ${err.message}`);
+      });
+
+      logger.info('Telegram channel started');
+    } catch (err) {
+      logger.error(`Failed to start Telegram channel: ${err.message}`);
+      this._running = false;
+      this.bot = null;
+    }
   }
 
   async stop() {
