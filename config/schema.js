@@ -19,7 +19,8 @@ export const defaultConfig = {
   provider: {
     apiKey: '',
     apiBase: 'https://openrouter.ai/api/v1',
-    defaultModel: 'anthropic/claude-sonnet-4-20250514'
+    defaultModel: 'anthropic/claude-sonnet-4-20250514',
+    fallbackModels: [] // Array of fallback models in priority order (left to right)
   },
 
   // Agent settings
