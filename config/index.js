@@ -88,56 +88,69 @@ export function loadConfig() {
   // Override with env vars
   const env = process.env;
 
-  config.port = parseInt2(env.PORT, config.port);
-  config.nodeEnv = env.NODE_ENV || config.nodeEnv;
-  config.workspacePath = env.WORKSPACE_PATH || config.workspacePath;
+  config.port = config.port || parseInt2(env.PORT);
+  config.nodeEnv = config.nodeEnv || env.NODE_ENV;
+  config.workspacePath = config.workspacePath || env.WORKSPACE_PATH;
 
-  // Provider
+  // Provider - config.json has priority
   config.provider = {
-    apiKey: env.OPENAI_API_KEY || config.provider.apiKey,
-    apiBase: env.OPENAI_API_BASE || config.provider.apiBase,
-    defaultModel: env.DEFAULT_MODEL || config.provider.defaultModel
+    apiKey: config.provider.apiKey || env.OPENAI_API_KEY,
+    apiBase: config.provider.apiBase || env.OPENAI_API_BASE,
+    defaultModel: config.provider.defaultModel || env.DEFAULT_MODEL,
+    fallbackModels: (config.provider.fallbackModels && config.provider.fallbackModels.length > 0) 
+      ? config.provider.fallbackModels 
+      : (env.FALLBACK_MODELS ? env.FALLBACK_MODELS.split(',').map(s => s.trim()) : [])
   };
 
-  // Agent
+  // Agent - config.json has priority
   config.agent = {
-    maxIterations: parseInt2(env.MAX_ITERATIONS, config.agent.maxIterations)
+    maxIterations: config.agent.maxIterations || parseInt2(env.MAX_ITERATIONS)
   };
 
-  // Exec
+  // Exec - config.json has priority
   config.exec = {
-    timeout: parseInt2(env.EXEC_TIMEOUT, config.exec.timeout),
-    restrictToWorkspace: parseBool(env.EXEC_RESTRICT_WORKSPACE, config.exec.restrictToWorkspace)
+    timeout: config.exec.timeout || parseInt2(env.EXEC_TIMEOUT),
+    restrictToWorkspace: config.exec.restrictToWorkspace !== undefined 
+      ? config.exec.restrictToWorkspace 
+      : parseBool(env.EXEC_RESTRICT_WORKSPACE)
   };
 
-  // Telegram
+  // Telegram - config.json has priority
   config.telegram = {
-    enabled: config.telegram.enabled || parseBool(env.TELEGRAM_ENABLED, false),
-    token: env.TELEGRAM_BOT_TOKEN || config.telegram.token,
-    allowFrom: env.TELEGRAM_ALLOW_FROM ? env.TELEGRAM_ALLOW_FROM.split(',').map(s => s.trim()) : config.telegram.allowFrom
+    enabled: config.telegram.enabled !== undefined 
+      ? config.telegram.enabled 
+      : parseBool(env.TELEGRAM_ENABLED, false),
+    token: config.telegram.token || env.TELEGRAM_BOT_TOKEN,
+    allowFrom: (config.telegram.allowFrom && config.telegram.allowFrom.length > 0)
+      ? config.telegram.allowFrom
+      : (env.TELEGRAM_ALLOW_FROM ? env.TELEGRAM_ALLOW_FROM.split(',').map(s => s.trim()) : [])
   };
 
-  // WhatsApp
+  // WhatsApp - config.json has priority
   config.whatsapp = {
-    enabled: parseBool(env.WHATSAPP_ENABLED, config.whatsapp.enabled),
-    bridgePort: parseInt2(env.WHATSAPP_BRIDGE_PORT, config.whatsapp.bridgePort)
+    enabled: config.whatsapp.enabled !== undefined 
+      ? config.whatsapp.enabled 
+      : parseBool(env.WHATSAPP_ENABLED),
+    bridgePort: config.whatsapp.bridgePort || parseInt2(env.WHATSAPP_BRIDGE_PORT)
   };
 
-  // Web
+  // Web - config.json has priority
   config.web = {
-    braveApiKey: env.BRAVE_API_KEY || config.web.braveApiKey
+    braveApiKey: config.web.braveApiKey || env.BRAVE_API_KEY
   };
 
-  // Heartbeat
+  // Heartbeat - config.json has priority
   config.heartbeat = {
-    enabled: parseBool(env.HEARTBEAT_ENABLED, config.heartbeat.enabled),
-    intervalS: parseInt2(env.HEARTBEAT_INTERVAL_S, config.heartbeat.intervalS)
+    enabled: config.heartbeat.enabled !== undefined 
+      ? config.heartbeat.enabled 
+      : parseBool(env.HEARTBEAT_ENABLED),
+    intervalS: config.heartbeat.intervalS || parseInt2(env.HEARTBEAT_INTERVAL_S)
   };
 
-  // Admin
+  // Admin - config.json has priority
   config.admin = {
-    user: env.ADMIN_USER || config.admin.user,
-    pass: env.ADMIN_PASS || config.admin.pass
+    user: config.admin.user || env.ADMIN_USER,
+    pass: config.admin.pass || env.ADMIN_PASS
   };
 
   return config;
