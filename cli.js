@@ -169,4 +169,88 @@ cron
     }
   });
 
+cron
+  .command('add')
+  .description('Add a new scheduled job')
+  .requiredOption('-s, --schedule <cron>', 'Cron expression (e.g., "*/5 * * * *" for every 5 minutes)')
+  .requiredOption('-m, --message <text>', 'Message to send to agent')
+  .option('-n, --name <text>', 'Job name', 'Unnamed job')
+  .action(async (options) => {
+    const config = getConfig();
+    const { CronService } = await import('./src/services/CronService.js');
+    const cronService = new CronService(config, null);
+
+    const job = {
+      id: `job_${Date.now()}`,
+      name: options.name,
+      schedule: {
+        kind: 'cron',
+        expr: options.schedule
+      },
+      message: options.message,
+      enabled: true,
+      lastRun: null
+    };
+
+    cronService.addJob(job);
+    console.log(`✓ Job added: [${job.id}] ${job.name}`);
+    console.log(`  Schedule: ${options.schedule}`);
+    console.log(`  Message: ${options.message}`);
+  });
+
+cron
+  .command('remove')
+  .description('Remove a scheduled job')
+  .argument('<id>', 'Job ID')
+  .action(async (id) => {
+    const config = getConfig();
+    const { CronService } = await import('./src/services/CronService.js');
+    const cronService = new CronService(config, null);
+
+    const success = cronService.removeJob(id);
+    if (success) {
+      console.log(`✓ Job removed: ${id}`);
+    } else {
+      console.log(`✗ Job not found: ${id}`);
+    }
+  });
+
+cron
+  .command('enable')
+  .description('Enable a scheduled job')
+  .argument('<id>', 'Job ID')
+  .action(async (id) => {
+    const config = getConfig();
+    const { CronService } = await import('./src/services/CronService.js');
+    const cronService = new CronService(config, null);
+
+    // Load jobs first
+    cronService._loadJobs();
+    const job = cronService.enableJob(id, true);
+    if (job) {
+      console.log(`✓ Job enabled: ${id}`);
+    } else {
+      console.log(`✗ Job not found: ${id}`);
+    }
+  });
+
+cron
+  .command('disable')
+  .description('Disable a scheduled job')
+  .argument('<id>', 'Job ID')
+  .action(async (id) => {
+    const config = getConfig();
+    const { CronService } = await import('./src/services/CronService.js');
+    const cronService = new CronService(config, null);
+
+    // Load jobs first
+    cronService._loadJobs();
+    const job = cronService.enableJob(id, false);
+    if (job) {
+      console.log(`✓ Job disabled: ${id}`);
+    } else {
+      console.log(`✗ Job not found: ${id}`);
+    }
+  });
+
 program.parse();
