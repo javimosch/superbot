@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="min-h-screen bg-base-200">
+  <div id="app">
+    <div class="navbar bg-base-100 shadow-lg">
+      <div class="flex-1">
+        <a href="/" class="btn btn-ghost text-xl">🤖 Superbot Admin</a>
+      </div>
+    </div>
+
+    <div class="container mx-auto p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Channels -->
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">Channels</h2>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center">
+                <span>Telegram</span>
+                <span :class="channels.telegram?.connected ? 'badge badge-success' : 'badge badge-ghost'">
+                  {{ channels.telegram?.enabled ? (channels.telegram?.connected ? 'Connected' : 'Enabled') : 'Disabled' }}
+                </span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span>WhatsApp</span>
+                <span :class="channels.whatsapp?.connected ? 'badge badge-success' : 'badge badge-ghost'">
+                  {{ channels.whatsapp?.enabled ? (channels.whatsapp?.connected ? 'Connected' : 'Enabled') : 'Disabled' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sessions -->
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">Sessions</h2>
+            <div v-if="sessions.length === 0" class="text-gray-500">No active sessions</div>
+            <ul v-else class="space-y-1">
+              <li v-for="session in sessions" :key="session.key" class="text-sm">
+                {{ session.key }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Cron Jobs -->
+        <div class="card bg-base-100 shadow-xl md:col-span-2">
+          <div class="card-body">
+            <h2 class="card-title">Scheduled Jobs</h2>
+            <div v-if="cron.length === 0" class="text-gray-500">No scheduled jobs</div>
+            <table v-else class="table table-zebra">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="job in cron" :key="job.id">
+                  <td>{{ job.id }}</td>
+                  <td>{{ job.name }}</td>
+                  <td>
+                    <span :class="job.enabled ? 'badge badge-success' : 'badge badge-ghost'">
+                      {{ job.enabled ? 'Enabled' : 'Disabled' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          channels: <%- JSON.stringify(channels) %>,
+          sessions: <%- JSON.stringify(sessions) %>,
+          cron: <%- JSON.stringify(cron) %>
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+workspace/
+bridge/node_modules/
+bridge/dist/
+*.log
+.DS_Store
+coverage/
+*.jsonl
+ref-*

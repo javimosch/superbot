@@ -1,0 +1,39 @@
+{
+  "name": "superbot",
+  "version": "0.1.0",
+  "description": "AI agent framework with modular architecture",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "superbot": "./cli.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon --verbose --watch . --ignore node_modules --ignore bridge --ignore workspace --ignore '*.jsonl' server.js",
+    "cli": "node cli.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "bridge:build": "cd bridge && npm install && npm run build",
+    "bridge:start": "cd bridge && npm start"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.3.1",
+    "ejs": "^4.0.1",
+    "express": "^4.18.2",
+    "jsdom": "^24.0.0",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.64.0",
+    "readability-extractor": "^0.0.6",
+    "uuid": "^9.0.0",
+    "winston": "^3.11.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
