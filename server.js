@@ -48,6 +48,7 @@ async function main() {
 
   // Start background services
   await channelService.startAll();
+  await agentService.startLoop();  // Start the agent loop to process messages
   await cronService.start();
   await heartbeatService.start();
 
@@ -65,6 +66,7 @@ async function main() {
     try {
       heartbeatService.stop();
       cronService.stop();
+      agentService.stopLoop();  // Stop the agent loop
       await channelService.stopAll();
       
       server.close(() => {

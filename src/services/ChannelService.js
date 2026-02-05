@@ -25,15 +25,27 @@ export class ChannelService {
     logger.info('ChannelService: starting channels...');
 
     if (this.config.telegram.enabled) {
-      const telegram = new TelegramChannel(this.config.telegram, this.bus);
-      await telegram.start();
-      this._channels.set('telegram', telegram);
+      try {
+        logger.debug('ChannelService: starting Telegram channel...');
+        const telegram = new TelegramChannel(this.config.telegram, this.bus);
+        await telegram.start();
+        this._channels.set('telegram', telegram);
+        logger.info('ChannelService: Telegram channel started successfully');
+      } catch (err) {
+        logger.error(`ChannelService: Failed to start Telegram channel: ${err.message}`);
+      }
     }
 
     if (this.config.whatsapp.enabled) {
-      const whatsapp = new WhatsAppChannel(this.config.whatsapp, this.bus);
-      await whatsapp.start();
-      this._channels.set('whatsapp', whatsapp);
+      try {
+        logger.debug('ChannelService: starting WhatsApp channel...');
+        const whatsapp = new WhatsAppChannel(this.config.whatsapp, this.bus);
+        await whatsapp.start();
+        this._channels.set('whatsapp', whatsapp);
+        logger.info('ChannelService: WhatsApp channel started successfully');
+      } catch (err) {
+        logger.error(`ChannelService: Failed to start WhatsApp channel: ${err.message}`);
+      }
     }
 
     // Start outbound dispatcher
