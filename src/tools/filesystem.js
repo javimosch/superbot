@@ -15,7 +15,7 @@ function expandPath(p) {
 
 export class ReadFileTool extends Tool {
   get name() { return 'read_file'; }
-  get description() { return 'Read the contents of a file at the given path.'; }
+  get description() { return 'Read the complete contents of a file. ALWAYS use this tool for reading files instead of guessing or assuming file contents.'; }
   get parameters() {
     return {
       type: 'object',
@@ -46,7 +46,7 @@ export class ReadFileTool extends Tool {
 
 export class WriteFileTool extends Tool {
   get name() { return 'write_file'; }
-  get description() { return 'Write content to a file. Creates parent directories if needed.'; }
+  get description() { return 'Write content to a file. Creates parent directories if needed. ALWAYS use this tool for writing or creating files.'; }
   get parameters() {
     return {
       type: 'object',
@@ -73,7 +73,7 @@ export class WriteFileTool extends Tool {
 
 export class EditFileTool extends Tool {
   get name() { return 'edit_file'; }
-  get description() { return 'Edit a file by replacing old_text with new_text. The old_text must exist exactly in the file.'; }
+  get description() { return 'Edit a file by replacing old_text with new_text. The old_text must exist exactly in the file. ALWAYS use this tool for file modifications.'; }
   get parameters() {
     return {
       type: 'object',
@@ -112,7 +112,7 @@ export class EditFileTool extends Tool {
 
 export class ListDirTool extends Tool {
   get name() { return 'list_dir'; }
-  get description() { return 'List the contents of a directory.'; }
+  get description() { return 'List the complete contents of a directory. ALWAYS use this tool for directory listing commands like "ls", "dir", or when asked to show folder contents. Do not guess directory contents - use this tool to get accurate results.'; }
   get parameters() {
     return {
       type: 'object',
