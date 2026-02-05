@@ -29,6 +29,8 @@
     "winston": "^3.11.0",
     "ws": "^8.17.0"
   },
+  "author": "Javier Leandro Arancibia <arancibiajav@gmail.com>",
+  "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.0.0"
