@@ -37,51 +37,86 @@ const BYPASS_PATTERNS = [
 function extractAllPaths(command) {
   const paths = new Set();
   
-  // Absolute paths starting with / (Unix)
-  // Match: /path, /path/to/file (but not ./path)
-  const absolutePaths = [...command.matchAll(/(?:^|\s)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*/g)];
-  absolutePaths.forEach(match => paths.add(match[0].trim()));
-  
-  // Windows paths: C:\path\to\file
-  const windowsPaths = [...command.matchAll(/[A-Za-z]:\\[^\s"']+/g)];
-  windowsPaths.forEach(match => paths.add(match[0]));
-  
-  // Quoted paths: "path", 'path' - extract the content
-  const quotedPaths = [...command.matchAll(/["']([^"']+)["']/g)];
-  quotedPaths.forEach(match => {
-    const content = match[1];
-    // Only add if it looks like a path
-    if (content.includes('/') || content.includes('\\') || content.includes('..') || content.startsWith('~') || content.startsWith('$')) {
-      paths.add(content);
+  // Special handling for find command - only extract actual paths, not options
+  if (command.trim().startsWith('find ')) {
+    // For find commands, be more selective about what we consider a path
+    const findParts = command.split(' ');
+    for (let i = 0; i < findParts.length; i++) {
+      const part = findParts[i];
+      // Skip find command and common options
+      if (part === 'find' || part.startsWith('-')) continue;
+      // Skip common find options that take arguments
+      if (part === '-name' || part === '-type' || part === '-exec' || part === '-print') {
+        i++; // Skip the next argument too
+        continue;
+      }
+      // Skip single letters that are likely find options (like 'f' for -type f)
+      if (part.length === 1 && /^[a-z]$/.test(part)) continue;
+      // Add remaining parts as potential paths
+      if (part && part !== '.' && part.trim() !== '') {
+        paths.add(part);
+      }
     }
-  });
-  
-  // Environment variables: $VAR/path, ${VAR}/path
-  const envPaths = [...command.matchAll(/\$[A-Za-z_][A-Za-z0-9_]*\/[^\s]*/g)];
-  envPaths.forEach(match => paths.add(match[0]));
-  
-  // Tilde expansion: ~/path
-  const tildePaths = [...command.matchAll(/~\/[^\s]*/g)];
-  tildePaths.forEach(match => paths.add(match[0]));
-  
-  // Relative paths with ./
-  const relativeDotPaths = [...command.matchAll(/\.\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*/g)];
-  relativeDotPaths.forEach(match => paths.add(match[0]));
-  
-  // Relative paths with ../
-  const relativeDotDotPaths = [...command.matchAll(/\.\.\/[A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_.-]+)*/g)];
-  relativeDotDotPaths.forEach(match => paths.add(match[0]));
-  
-  // Simple relative paths (e.g., home_link, home_link/, subdir)
-  // Match word characters followed by optional slash and more path components
-  const simpleRelativePaths = [...command.matchAll(/\s([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?)/g)];
-  simpleRelativePaths.forEach(match => {
-    const path = match[1].trim();
-    // Don't add if it's a common command
-    if (!['ls', 'cat', 'echo', 'pwd', 'cd', 'rm', 'mkdir', 'cp', 'mv', 'touch'].includes(path)) {
-      paths.add(path);
+  } else if (command.trim().startsWith('grep ')) {
+    // Special handling for grep command
+    const grepParts = command.split(' ');
+    for (let i = 0; i < grepParts.length; i++) {
+      const part = grepParts[i];
+      // Skip grep command and common options
+      if (part === 'grep' || part.startsWith('-')) continue;
+      // Add remaining parts as potential paths
+      if (part && part !== '.' && part.trim() !== '') {
+        paths.add(part);
+      }
     }
-  });
+  } else {
+    // Original logic for non-find/grep commands
+    // Absolute paths starting with / (Unix)
+    // Match: /path, /path/to/file (but not ./path)
+    const absolutePaths = [...command.matchAll(/(?:^|\s)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*/g)];
+    absolutePaths.forEach(match => paths.add(match[0].trim()));
+    
+    // Windows paths: C:\path\to\file
+    const windowsPaths = [...command.matchAll(/[A-Za-z]:\\[^\s"']+/g)];
+    windowsPaths.forEach(match => paths.add(match[0]));
+    
+    // Quoted paths: "path", 'path' - extract the content
+    const quotedPaths = [...command.matchAll(/["']([^"']+)["']/g)];
+    quotedPaths.forEach(match => {
+      const content = match[1];
+      // Only add if it looks like a path
+      if (content.includes('/') || content.includes('\\') || content.includes('..') || content.startsWith('~') || content.startsWith('$')) {
+        paths.add(content);
+      }
+    });
+    
+    // Environment variables: $VAR/path, ${VAR}/path
+    const envPaths = [...command.matchAll(/\$[A-Za-z_][A-Za-z0-9_]*\/[^\s]*/g)];
+    envPaths.forEach(match => paths.add(match[0]));
+    
+    // Tilde expansion: ~/path
+    const tildePaths = [...command.matchAll(/~\/[^\s]*/g)];
+    tildePaths.forEach(match => paths.add(match[0]));
+    
+    // Relative paths with ./
+    const relativeDotPaths = [...command.matchAll(/\.\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*/g)];
+    relativeDotPaths.forEach(match => paths.add(match[0]));
+    
+    // Relative paths with ../
+    const relativeDotDotPaths = [...command.matchAll(/\.\.\/[A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_.-]+)*/g)];
+    relativeDotDotPaths.forEach(match => paths.add(match[0]));
+    
+    // Simple relative paths (e.g., home_link, home_link/, subdir)
+    // Match word characters followed by optional slash and more path components
+    const simpleRelativePaths = [...command.matchAll(/\s([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?)/g)];
+    simpleRelativePaths.forEach(match => {
+      const path = match[1].trim();
+      // Don't add if it's a common command
+      if (!['ls', 'cat', 'echo', 'pwd', 'cd', 'rm', 'mkdir', 'cp', 'mv', 'touch'].includes(path)) {
+        paths.add(path);
+      }
+    });
+  }
   
   return Array.from(paths);
 }
@@ -134,7 +169,7 @@ export class ExecTool extends Tool {
 
   async execute({ command, working_dir }) {
     const cwd = working_dir || this.workingDir || process.cwd();
-    const guardError = this._guardCommand(command, cwd);
+    const guardError = await this._guardCommand(command, cwd);
     if (guardError) return guardError;
 
     try {
@@ -202,6 +237,11 @@ export class ExecTool extends Tool {
           continue;
         }
         
+        // Skip glob patterns and search patterns
+        if (pathStr.includes('*') || pathStr.includes('?') || pathStr.startsWith('"') && pathStr.endsWith('"')) {
+          continue;
+        }
+        
         // Skip relative paths that are clearly within workspace (start with ./)
         if (pathStr.startsWith('./')) {
           // Double-check they don't contain traversal
@@ -243,3 +283,6 @@ export class ExecTool extends Tool {
     return null; // Command allowed
   }
 }
+
+// Export the path extraction function for debugging
+export { extractAllPaths };
