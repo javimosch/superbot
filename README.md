@@ -365,6 +365,7 @@ MIT
 [![Star History Chart](https://api.star-history.com/svg?repos=javimosch/superbot&type=date&legend=top-left)](https://www.star-history.com/#javimosch/superbot&type=date&legend=top-left)
 
 <p align="center">
+  <em> Created by <a href="https://intrane.fr">Javier Leandro Arancibia</a></em><br>
   <em> Thanks for visiting ✨ Superbot!</em><br><br>
   <img src="https://visitor-badge.laobi.icu/badge?page_id=javimosch.superbot&style=for-the-badge&color=00d4ff" alt="Views">
 </p>
